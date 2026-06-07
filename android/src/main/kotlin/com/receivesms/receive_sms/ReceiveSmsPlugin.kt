@@ -6,16 +6,20 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.telephony.SmsManager
 import androidx.core.app.ActivityCompat
-import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.EventChannel
+import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
 class ReceiveSmsPlugin : FlutterPlugin, ActivityAware {
     private var permissionResult: MethodChannel.Result? = null
+    private var sendSmsResult: MethodChannel.Result? = null
+    private var sendSmsAddress: String? = null
+    private var sendSmsBody: String? = null
     private var activityBinding: ActivityPluginBinding? = null
     private var hasRequestedPermission = false
 
@@ -23,6 +27,7 @@ class ReceiveSmsPlugin : FlutterPlugin, ActivityAware {
         private const val SMS_EVENTS_CHANNEL = "com.greenhouse.greenhouse/sms_events"
         private const val PERMISSION_CHANNEL = "com.greenhouse.greenhouse/permission"
         private const val PERMISSION_REQUEST_CODE = 1001
+        private const val SEND_SMS_REQUEST_CODE = 1002
     }
 
     override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
@@ -47,6 +52,7 @@ class ReceiveSmsPlugin : FlutterPlugin, ActivityAware {
                 "requestSmsPermission" -> requestSmsPermission(result)
                 "openAppSettings" -> openAppSettings(result)
                 "canRequestPermission" -> canRequestPermission(result)
+                "sendSms" -> sendSms(call, result)
                 else -> result.notImplemented()
             }
         }
@@ -77,6 +83,20 @@ class ReceiveSmsPlugin : FlutterPlugin, ActivityAware {
                     mapOf("granted" to granted, "canRequest" to canRequest)
                 )
                 permissionResult = null
+                true
+            } else if (requestCode == SEND_SMS_REQUEST_CODE) {
+                val granted = grantResults.isNotEmpty() &&
+                        grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+                if (granted) {
+                    sendSmsInternal(sendSmsAddress ?: "", sendSmsBody ?: "", sendSmsResult)
+                } else {
+                    sendSmsResult?.success(
+                        mapOf("success" to false, "error" to "Permission denied")
+                    )
+                }
+                sendSmsResult = null
+                sendSmsAddress = null
+                sendSmsBody = null
                 true
             } else {
                 false
@@ -163,6 +183,57 @@ class ReceiveSmsPlugin : FlutterPlugin, ActivityAware {
             result.success(true)
         } catch (e: Exception) {
             result.success(false)
+        }
+    }
+
+    private fun sendSms(call: MethodCall, result: MethodChannel.Result) {
+        val address = call.argument<String>("address") ?: ""
+        val body = call.argument<String>("body") ?: ""
+
+        val activity = activityBinding?.activity
+        if (activity == null) {
+            result.success(mapOf("success" to false, "error" to "No available activity"))
+            return
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            activity.checkSelfPermission(Manifest.permission.SEND_SMS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            if (activity.shouldShowRequestPermissionRationale(Manifest.permission.SEND_SMS) ||
+                sendSmsResult == null
+            ) {
+                sendSmsResult = result
+                sendSmsAddress = address
+                sendSmsBody = body
+                ActivityCompat.requestPermissions(
+                    activity,
+                    arrayOf(Manifest.permission.SEND_SMS),
+                    SEND_SMS_REQUEST_CODE
+                )
+            } else {
+                result.success(
+                    mapOf("success" to false, "error" to "Permission permanently denied")
+                )
+            }
+            return
+        }
+
+        sendSmsInternal(address, body, result)
+    }
+
+    private fun sendSmsInternal(
+        address: String,
+        body: String,
+        result: MethodChannel.Result?
+    ) {
+        if (result == null) return
+        try {
+            val smsManager = SmsManager.getDefault()
+            smsManager.sendTextMessage(address, null, body, null, null)
+            result.success(mapOf("success" to true))
+        } catch (e: Exception) {
+            result.success(mapOf("success" to false, "error" to (e.message ?: "Unknown error")))
         }
     }
 }

@@ -1,11 +1,12 @@
 # receive_sms
 
-A Flutter plugin that listens for incoming SMS messages on Android using a native `BroadcastReceiver`.
+A Flutter plugin that listens for incoming SMS messages and sends SMS messages on Android using native APIs.
 
 ## Features
 
 - Listen for incoming SMS messages in real-time via a Dart `Stream`
-- Request `RECEIVE_SMS` and `READ_SMS` permissions at runtime
+- Send SMS messages programmatically
+- Request `RECEIVE_SMS`, `READ_SMS`, and `SEND_SMS` permissions at runtime
 - Detect when permission has been permanently denied and guide users to App Settings
 - Open system App Settings page for manual permission enablement
 - No third-party dependencies — pure Kotlin + Dart
@@ -30,7 +31,7 @@ Add this to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  receive_sms: ^1.0.1
+  receive_sms: ^1.1.0
 ```
 
 Then run:
@@ -39,9 +40,11 @@ Then run:
 flutter pub get
 ```
 
-No additional Android configuration is needed — the plugin handles permissions and the broadcast receiver automatically.
+No additional Android configuration is needed — the plugin handles permissions, sending, and the broadcast receiver automatically.
 
 ## Usage
+
+### Receive SMS
 
 ```dart
 import 'package:receive_sms/receive_sms.dart';
@@ -65,6 +68,23 @@ receiveSms.incomingSmsStream.listen((SmsMessage message) {
 });
 ```
 
+### Send SMS
+
+```dart
+final result = await receiveSms.sendSms(
+  address: '+1234567890',
+  body: 'Hello from Flutter!',
+);
+
+if (result.success) {
+  print('SMS sent successfully');
+} else {
+  print('Failed to send SMS: ${result.error}');
+}
+```
+
+The plugin will automatically request `SEND_SMS` permission if it hasn't been granted yet.
+
 ## API
 
 ### `ReceiveSms`
@@ -76,12 +96,13 @@ receiveSms.incomingSmsStream.listen((SmsMessage message) {
 | `canRequestPermission` | `Future<bool>` | Checks if the system permission dialog can be shown (returns `false` when permanently denied). |
 | `openAppSettings()` | `Future<void>` | Opens the system App Settings page for the app. |
 | `incomingSmsStream` | `Stream<SmsMessage>` | A broadcast stream that emits an `SmsMessage` for every incoming SMS. |
+| `sendSms({address, body})` | `Future<SendSmsResult>` | Sends an SMS message. Automatically requests `SEND_SMS` permission if needed. |
 
 ### `SmsMessage`
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `address` | `String` | Sender phone number. |
+| `address` | `String` | Sender phone number (incoming) or recipient (outgoing). |
 | `body` | `String` | SMS message body. |
 | `timestamp` | `String` | Timestamp in milliseconds as a string. |
 
@@ -91,6 +112,13 @@ receiveSms.incomingSmsStream.listen((SmsMessage message) {
 |-------|------|-------------|
 | `granted` | `bool` | Whether the permission was granted. |
 | `canRequest` | `bool` | Whether the system permission dialog can be shown (false on MIUI and when "Don't ask again" was checked). |
+
+### `SendSmsResult`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | `bool` | Whether the SMS was sent successfully. |
+| `error` | `String?` | Error message if sending failed. |
 
 ## Notes for Xiaomi / MIUI & Other Devices
 

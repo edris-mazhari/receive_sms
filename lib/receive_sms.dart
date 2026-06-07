@@ -14,6 +14,13 @@ class PermissionResult {
   });
 }
 
+class SendSmsResult {
+  final bool success;
+  final String? error;
+
+  const SendSmsResult({required this.success, this.error});
+}
+
 class ReceiveSms {
   static final ReceiveSms _instance = ReceiveSms._();
   factory ReceiveSms() => _instance;
@@ -21,7 +28,7 @@ class ReceiveSms {
 
   static const EventChannel _smsEventChannel =
       EventChannel('com.greenhouse.greenhouse/sms_events');
-  static const MethodChannel _permissionChannel =
+  static const MethodChannel _smsChannel =
       MethodChannel('com.greenhouse.greenhouse/permission');
 
   Stream<SmsMessage>? _smsStream;
@@ -35,7 +42,7 @@ class ReceiveSms {
 
   Future<PermissionResult> requestPermission() async {
     final result =
-        await _permissionChannel.invokeMethod<Map>('requestSmsPermission');
+        await _smsChannel.invokeMethod<Map>('requestSmsPermission');
     return PermissionResult(
       granted: result?['granted'] as bool? ?? false,
       canRequest: result?['canRequest'] as bool? ?? true,
@@ -49,11 +56,26 @@ class ReceiveSms {
 
   Future<bool> get canRequestPermission async {
     final result =
-        await _permissionChannel.invokeMethod<bool>('canRequestPermission');
+        await _smsChannel.invokeMethod<bool>('canRequestPermission');
     return result ?? true;
   }
 
   Future<void> openAppSettings() async {
-    await _permissionChannel.invokeMethod('openAppSettings');
+    await _smsChannel.invokeMethod('openAppSettings');
+  }
+
+  Future<SendSmsResult> sendSms({
+    required String address,
+    required String body,
+  }) async {
+    final result = await _smsChannel.invokeMethod<Map>('sendSms', {
+      'address': address,
+      'body': body,
+    });
+    final map = Map<String, dynamic>.from(result as Map);
+    return SendSmsResult(
+      success: map['success'] as bool? ?? false,
+      error: map['error'] as String?,
+    );
   }
 }
