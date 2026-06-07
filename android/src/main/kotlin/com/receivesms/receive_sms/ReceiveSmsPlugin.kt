@@ -17,6 +17,7 @@ import io.flutter.plugin.common.MethodChannel
 class ReceiveSmsPlugin : FlutterPlugin, ActivityAware {
     private var permissionResult: MethodChannel.Result? = null
     private var activityBinding: ActivityPluginBinding? = null
+    private var hasRequestedPermission = false
 
     companion object {
         private const val SMS_EVENTS_CHANNEL = "com.greenhouse.greenhouse/sms_events"
@@ -59,10 +60,21 @@ class ReceiveSmsPlugin : FlutterPlugin, ActivityAware {
         activityBinding = binding
         binding.addRequestPermissionsResultListener { requestCode, permissions, grantResults ->
             if (requestCode == PERMISSION_REQUEST_CODE) {
+                hasRequestedPermission = true
                 val granted = grantResults.isNotEmpty() &&
                         grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+
+                val activity = activityBinding?.activity
+                val canRequest = if (granted) {
+                    true
+                } else if (activity != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    activity.shouldShowRequestPermissionRationale(Manifest.permission.RECEIVE_SMS)
+                } else {
+                    true
+                }
+
                 permissionResult?.success(
-                    mapOf("granted" to granted, "canRequest" to true)
+                    mapOf("granted" to granted, "canRequest" to canRequest)
                 )
                 permissionResult = null
                 true
@@ -99,26 +111,43 @@ class ReceiveSmsPlugin : FlutterPlugin, ActivityAware {
             result.success(mapOf("granted" to true, "canRequest" to true))
             return
         }
-        if (activity.shouldShowRequestPermissionRationale(Manifest.permission.RECEIVE_SMS)) {
-            permissionResult = result
-            ActivityCompat.requestPermissions(
-                activity,
-                arrayOf(Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS),
-                PERMISSION_REQUEST_CODE
-            )
-        } else {
+
+        if (hasRequestedPermission &&
+            !activity.shouldShowRequestPermissionRationale(Manifest.permission.RECEIVE_SMS)
+        ) {
             result.success(mapOf("granted" to false, "canRequest" to false))
+            return
         }
+
+        permissionResult = result
+        ActivityCompat.requestPermissions(
+            activity,
+            arrayOf(Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS),
+            PERMISSION_REQUEST_CODE
+        )
     }
 
     private fun canRequestPermission(result: MethodChannel.Result) {
         val activity = activityBinding?.activity
-        val canRequest = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && activity != null) {
-            activity.shouldShowRequestPermissionRationale(Manifest.permission.RECEIVE_SMS)
-        } else {
-            true
+
+        if (activity == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            result.success(true)
+            return
         }
-        result.success(canRequest)
+
+        if (activity.checkSelfPermission(Manifest.permission.RECEIVE_SMS) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            result.success(true)
+            return
+        }
+
+        if (!hasRequestedPermission) {
+            result.success(true)
+            return
+        }
+
+        result.success(activity.shouldShowRequestPermissionRationale(Manifest.permission.RECEIVE_SMS))
     }
 
     private fun openAppSettings(result: MethodChannel.Result) {

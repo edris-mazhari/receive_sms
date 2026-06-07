@@ -30,7 +30,7 @@ Add this to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  receive_sms: ^1.0.0
+  receive_sms: ^1.0.1
 ```
 
 Then run:
@@ -73,7 +73,7 @@ receiveSms.incomingSmsStream.listen((SmsMessage message) {
 |-------------------|---------|-------------|
 | `requestPermission()` | `Future<PermissionResult>` | Requests `RECEIVE_SMS` + `READ_SMS` permissions. Returns `PermissionResult` with `granted` and `canRequest` fields. |
 | `hasPermission` | `Future<bool>` | Checks whether SMS permission is already granted. |
-| `canRequestPermission` | `Future<bool>` | Checks if the system permission dialog can be shown (`shouldShowRequestPermissionRationale`). |
+| `canRequestPermission` | `Future<bool>` | Checks if the system permission dialog can be shown (returns `false` when permanently denied). |
 | `openAppSettings()` | `Future<void>` | Opens the system App Settings page for the app. |
 | `incomingSmsStream` | `Stream<SmsMessage>` | A broadcast stream that emits an `SmsMessage` for every incoming SMS. |
 
@@ -92,9 +92,9 @@ receiveSms.incomingSmsStream.listen((SmsMessage message) {
 | `granted` | `bool` | Whether the permission was granted. |
 | `canRequest` | `bool` | Whether the system permission dialog can be shown (false on MIUI and when "Don't ask again" was checked). |
 
-## Notes for Xiaomi / MIUI Devices
+## Notes for Xiaomi / MIUI & Other Devices
 
-Xiaomi's MIUI may silently block the `RECEIVE_SMS` permission dialog. If `requestPermission()` returns `PermissionResult(granted: false, canRequest: false)`, the user must manually enable SMS permission in **Settings → Apps → Your App → Permissions**.
+Some OEMs (Xiaomi MIUI, Huawei EMUI, etc.) may suppress or block the runtime permission dialog. If `requestPermission()` returns `PermissionResult(granted: false, canRequest: false)`, the user must manually enable SMS permission in **Settings → Apps → Your App → Permissions**.
 
 The `openAppSettings()` method provides a shortcut to this screen.
 
