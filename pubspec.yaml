@@ -1,6 +1,6 @@
 name: receive_sms
 description: "A Flutter plugin to receive and send SMS messages on Android."
-version: 1.1.0
+version: 1.4.0
 repository: https://github.com/edris-mazhari/receive_sms
 license: MIT
 

@@ -78,4 +78,25 @@ class ReceiveSms {
       error: map['error'] as String?,
     );
   }
+
+  Future<bool> openSmsApp({
+    required String address,
+    required String body,
+  }) async {
+    final result = await _smsChannel.invokeMethod<bool>('openSmsApp', {
+      'address': address,
+      'body': body,
+    });
+    return result ?? false;
+  }
+
+  Future<bool> get isDefaultSmsApp async {
+    final result = await _smsChannel.invokeMethod<bool>('isDefaultSmsApp');
+    return result ?? false;
+  }
+
+  Future<bool> requestDefaultSmsApp() async {
+    final result = await _smsChannel.invokeMethod<bool>('requestDefaultSmsApp');
+    return result ?? false;
+  }
 }

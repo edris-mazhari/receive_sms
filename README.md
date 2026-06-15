@@ -5,10 +5,12 @@ A Flutter plugin that listens for incoming SMS messages and sends SMS messages o
 ## Features
 
 - Listen for incoming SMS messages in real-time via a Dart `Stream`
-- Send SMS messages programmatically
-- Request `RECEIVE_SMS`, `READ_SMS`, and `SEND_SMS` permissions at runtime
+- Send SMS messages with real delivery confirmation (not just "no exception thrown")
+- Auto-fallback to system SMS app when direct sending is restricted (Android 10+ OEMs)
+- Request `RECEIVE_SMS` and `SEND_SMS` permissions at runtime
 - Detect when permission has been permanently denied and guide users to App Settings
 - Open system App Settings page for manual permission enablement
+- Check if app is the default SMS handler and request default status
 - No third-party dependencies — pure Kotlin + Dart
 
 ## Platform Support
@@ -31,7 +33,7 @@ Add this to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  receive_sms: ^1.1.0
+  receive_sms: ^1.3.1
 ```
 
 Then run:
@@ -77,13 +79,19 @@ final result = await receiveSms.sendSms(
 );
 
 if (result.success) {
-  print('SMS sent successfully');
+  if (result.viaFallback) {
+    print('System SMS app opened with message pre-filled');
+  } else {
+    print('SMS sent directly');
+  }
 } else {
-  print('Failed to send SMS: ${result.error}');
+  print('Failed: ${result.error}');
 }
 ```
 
 The plugin will automatically request `SEND_SMS` permission if it hasn't been granted yet.
+
+On devices where direct SMS sending is restricted (some Android 10+ OEM ROMs), `sendSms()` automatically falls back to opening the system SMS app with the address and body pre-filled. The `viaFallback` field on `SendSmsResult` indicates when this fallback was used.
 
 ## API
 
@@ -91,12 +99,15 @@ The plugin will automatically request `SEND_SMS` permission if it hasn't been gr
 
 | Method / Property | Returns | Description |
 |-------------------|---------|-------------|
-| `requestPermission()` | `Future<PermissionResult>` | Requests `RECEIVE_SMS` + `READ_SMS` permissions. Returns `PermissionResult` with `granted` and `canRequest` fields. |
+| `requestPermission()` | `Future<PermissionResult>` | Requests `RECEIVE_SMS` permission. Returns `PermissionResult` with `granted` and `canRequest` fields. |
 | `hasPermission` | `Future<bool>` | Checks whether SMS permission is already granted. |
 | `canRequestPermission` | `Future<bool>` | Checks if the system permission dialog can be shown (returns `false` when permanently denied). |
 | `openAppSettings()` | `Future<void>` | Opens the system App Settings page for the app. |
 | `incomingSmsStream` | `Stream<SmsMessage>` | A broadcast stream that emits an `SmsMessage` for every incoming SMS. |
-| `sendSms({address, body})` | `Future<SendSmsResult>` | Sends an SMS message. Automatically requests `SEND_SMS` permission if needed. |
+| `sendSms({address, body})` | `Future<SendSmsResult>` | Sends an SMS with delivery confirmation. Automatically falls back to `openSmsApp()` when direct sending is restricted. |
+| `openSmsApp({address, body})` | `Future<bool>` | Opens the default SMS app with address and body pre-filled. |
+| `isDefaultSmsApp` | `Future<bool>` | Checks whether this app is the device's default SMS handler. |
+| `requestDefaultSmsApp()` | `Future<bool>` | Opens system dialog to set this app as the default SMS handler. |
 
 ### `SmsMessage`
 
@@ -117,8 +128,9 @@ The plugin will automatically request `SEND_SMS` permission if it hasn't been gr
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | `bool` | Whether the SMS was sent successfully. |
-| `error` | `String?` | Error message if sending failed. |
+| `success` | `bool` | Whether the SMS was sent or the system SMS app was opened as fallback. |
+| `error` | `String?` | Error message if sending failed and no fallback was possible. |
+| `viaFallback` | `bool?` | `true` when the system SMS app was opened as fallback instead of direct sending. |
 
 ## Notes for Xiaomi / MIUI & Other Devices
 
